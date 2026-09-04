@@ -497,6 +497,28 @@ def handle_updates(state, timeout):
 KEEPALIVE_DAYS = 20
 
 
+def run_test():
+    """Prove the whole chain works: network, token, delivery.
+
+    Sends to the FIRST configured chat only, so testing never spams a group.
+    """
+    who = telegram("getMe", {})
+    if not who or not who.get("ok"):
+        sys.exit("Could not authenticate with Telegram - check the bot token.")
+    log(f"authenticated as @{who['result']['username']}")
+
+    try:
+        offers = fetch_market(ENABLED_MARKETS[0])
+    except Exception as exc:  # noqa: BLE001
+        sys.exit(f"Could not reach the offer book: {exc}")
+    log(f"offer book reachable: {len(offers)} offers")
+
+    target = CHAT_IDS[0]
+    if not send_to(target, "\U0001f9ea Test from GitHub Actions - the watcher can reach you."):
+        sys.exit(f"Could not deliver a message to chat {target}.")
+    log(f"test message delivered to chat {target}")
+
+
 def run_once():
     """One pass, then exit: answer queued commands, check the book, save.
 
@@ -570,7 +592,9 @@ def main():
 
 if __name__ == "__main__":
     try:
-        if "--once" in sys.argv:
+        if "--test" in sys.argv:
+            run_test()
+        elif "--once" in sys.argv:
             run_once()
         else:
             main()

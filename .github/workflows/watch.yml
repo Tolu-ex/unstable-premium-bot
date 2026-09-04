@@ -6,6 +6,11 @@ on:
     # a run can be a few minutes late.
     - cron: "*/5 * * * *"
   workflow_dispatch:
+    inputs:
+      self_test:
+        description: "Send a test message to the first chat to verify delivery"
+        type: boolean
+        default: false
 
 # Never let two runs overlap - they'd race on the Telegram update queue and on
 # pushing state.
@@ -40,6 +45,14 @@ jobs:
           STATE_FILE: "state.json"
           ANNOUNCE_START: "0"
         run: python3 unstable_alert.py --once
+
+      - name: Self-test delivery
+        if: ${{ inputs.self_test }}
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          MARKETS: "buy"
+        run: python3 unstable_alert.py --test
 
       - name: Persist alert state
         run: |
