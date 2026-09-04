@@ -1,0 +1,32 @@
+[Unit]
+Description=Unstable premium Telegram alerter
+Documentation=https://github.com/Tolu-ex/unstable-premium-bot
+After=network-online.target
+Wants=network-online.target
+# systemd >= 230 wants these in [Unit], not [Service].
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=__USER__
+WorkingDirectory=__DIR__
+EnvironmentFile=__DIR__/.env
+# Must come after EnvironmentFile so it wins: ProtectHome makes $HOME
+# read-only, so the state file cannot live at its default ~/ location.
+Environment=STATE_FILE=__DIR__/state.json
+ExecStart=/usr/bin/python3 __DIR__/unstable_alert.py
+Restart=always
+RestartSec=10
+StandardOutput=append:__DIR__/bot.log
+StandardError=append:__DIR__/bot.log
+
+# Light hardening - the bot only needs outbound HTTPS and its own directory.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=__DIR__
+
+[Install]
+WantedBy=multi-user.target

@@ -50,7 +50,11 @@ def env_str(key, default=None, required=False):
 
 def env_num(key, default):
     raw = os.environ.get(key)
-    if raw is None or raw.strip() == "":
+    if raw is None:
+        return default
+    # systemd's EnvironmentFile keeps inline comments that a shell would drop.
+    raw = raw.split("#", 1)[0].strip()
+    if raw == "":
         return default
     try:
         return float(raw)
@@ -580,7 +584,7 @@ def main():
         f"| size >= {settings['min_size']} USDC | every {POLL_SECONDS}s"
     )
 
-    if os.environ.get("ANNOUNCE_START", "1") == "1":
+    if os.environ.get("ANNOUNCE_START", "1").split("#", 1)[0].strip() != "0":
         send(
             "✅ <b>Unstable watcher started</b>\n"
             f"Alerting when premium drops to <b>{fmt_pct(settings['max_premium'])}</b>"
