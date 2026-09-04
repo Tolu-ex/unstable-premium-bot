@@ -451,6 +451,9 @@ COMMANDS = {
 }
 
 
+_announced_unknown = set()
+
+
 def handle_updates(state, timeout):
     """Long-poll for commands. Doubles as the loop's sleep."""
     result = telegram(
@@ -472,8 +475,18 @@ def handle_updates(state, timeout):
         state["update_offset"] = update["update_id"] + 1
         message = update.get("message") or {}
         # Only take orders from a configured chat.
-        origin = str(message.get("chat", {}).get("id"))
+        chat = message.get("chat") or {}
+        origin = str(chat.get("id"))
         if origin not in CHAT_IDS:
+            # Say so once per chat, otherwise a chat we've never heard of is
+            # dropped in complete silence and is impossible to diagnose.
+            if origin not in _announced_unknown:
+                _announced_unknown.add(origin)
+                name = chat.get("title") or chat.get("first_name") or "?"
+                log(
+                    f"ignoring message from unconfigured chat {origin} "
+                    f"({chat.get('type')}, {name!r}) - add it to TELEGRAM_CHAT_ID to enable"
+                )
             continue
         text = (message.get("text") or "").strip()
         if not text.startswith("/"):
