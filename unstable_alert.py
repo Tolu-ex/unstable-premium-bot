@@ -456,6 +456,20 @@ COMMANDS = {
 
 
 _announced_unknown = set()
+_bot_username = None
+
+
+def bot_username():
+    """Our own @name, so we can tell commands aimed at other bots apart."""
+    global _bot_username
+    if _bot_username is None:
+        result = telegram("getMe", {})
+        if result and result.get("ok"):
+            _bot_username = (result["result"].get("username") or "").lower()
+        else:
+            _bot_username = ""  # retry next tick
+            return None
+    return _bot_username
 
 
 def handle_updates(state, timeout):
@@ -496,7 +510,15 @@ def handle_updates(state, timeout):
         if not text.startswith("/"):
             continue
         head, _, arg = text.partition(" ")
-        name = head[1:].split("@")[0].lower()
+        name, at, addressee = head[1:].partition("@")
+        name = name.lower()
+
+        # "/thing@SomeOtherBot" is not ours - never answer it.
+        if at:
+            mine = bot_username()
+            if mine and addressee.lower() != mine:
+                continue
+
         handler = COMMANDS.get(name)
         if handler:
             try:
@@ -504,7 +526,13 @@ def handle_updates(state, timeout):
             except Exception as exc:  # noqa: BLE001
                 log(f"command /{name} failed: {exc}")
                 send_to(origin, "Something went wrong running that command.")
+        elif str(chat.get("type", "")).endswith("group"):
+            # A group is shared with other people and other bots. Anything we
+            # don't recognise is almost certainly not for us - stay quiet
+            # rather than replying into someone else's conversation.
+            log(f"ignoring unrecognised /{name} in {chat.get('type')} {origin}")
         else:
+            # A private chat is one-to-one, so a reply here spams nobody.
             send_to(origin, "Unknown command. Try /status")
     save_state(state)
     return len(result["result"])
