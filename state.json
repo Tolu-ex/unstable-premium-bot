@@ -1,0 +1,15 @@
+{
+  "seen": {},
+  "settings": {
+    "max_premium": 50.0,
+    "min_size": 100.0,
+    "muted": false
+  },
+  "update_offset": 106664414,
+  "env_baseline": {
+    "max_premium": 50.0,
+    "min_size": 100.0,
+    "muted": false
+  },
+  "last_keepalive": 1788544514.8610604
+}
