@@ -1,0 +1,62 @@
+name: Watch Unstable premiums
+
+on:
+  schedule:
+    # Every 5 minutes. GitHub queues cron on a best-effort basis, so under load
+    # a run can be a few minutes late.
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+# Never let two runs overlap - they'd race on the Telegram update queue and on
+# pushing state.
+concurrency:
+  group: unstable-watcher
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check the book and alert
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          # Non-secret settings live here. Edit, commit, done.
+          MAX_PREMIUM_PCT: "50"
+          MIN_SIZE_USDC: "100"
+          MARKETS: "buy"
+          REALERT_HOURS: "6"
+          FORGET_MINUTES: "60"
+          STATE_FILE: "state.json"
+          ANNOUNCE_START: "0"
+        run: python3 unstable_alert.py --once
+
+      - name: Persist alert state
+        run: |
+          if [ -z "$(git status --porcelain state.json)" ]; then
+            echo "state unchanged, nothing to commit"
+            exit 0
+          fi
+          git config user.name "unstable-watcher"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add state.json
+          git commit -m "state: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          # Another run may have pushed while we worked; rebase before pushing.
+          for attempt in 1 2 3; do
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME}" && \
+              git push origin "HEAD:${GITHUB_REF_NAME}" && exit 0
+            echo "push attempt $attempt failed, retrying"
+            sleep 5
+          done
+          echo "could not persist state; next run may re-alert" >&2
+          exit 1
