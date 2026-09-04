@@ -113,6 +113,34 @@ macOS protects those folders, and a launchd agent has no permission to read
 them — the service fails with `Operation not permitted` before it ever starts.
 `~/unstable-premium-bot` (used here) is fine.
 
+### Running on GitHub Actions (how this one is deployed)
+
+`.github/workflows/watch.yml` runs `unstable_alert.py --once` on a 5-minute
+cron. Nothing stays resident: each run answers any queued commands, checks the
+book, alerts if warranted, and commits `state.json` back to the repo so the
+next run knows what it has already alerted on.
+
+- **Settings** live as plain `env:` values in the workflow. Edit, commit, push.
+- **Secrets** (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`) are GitHub Actions
+  secrets, never in the repo. Rotate with
+  `gh secret set TELEGRAM_BOT_TOKEN --repo <owner>/<repo>`.
+- **Commands still work**, but replies take until the next run — up to ~5
+  minutes, not instant.
+- **Verify the pipeline** any time from the Actions tab: run the workflow
+  manually with `self_test` ticked. It authenticates, fetches the book, and
+  messages the *first* configured chat only, so testing never spams a group.
+
+Caveats worth knowing:
+
+- GitHub runs cron on a best-effort basis. Under load a 5-minute schedule can
+  slip by several minutes. It is not a low-latency trading signal.
+- Scheduled workflows are disabled automatically after **60 days without
+  commits**. The bot nudges a `last_keepalive` timestamp every 20 days so the
+  state commit keeps the repo active.
+- Public repos get unlimited free Actions minutes. On a private repo the free
+  tier is 2000 min/month and each run bills rounded up to a whole minute, so a
+  5-minute cron would blow through it.
+
 ### What "always on" actually means
 
 The launch agent restarts the bot if it crashes and starts it again at login,
@@ -124,6 +152,7 @@ Pi, or a free Railway/Fly container. It's one file with no dependencies and no
 database, so deploying is: copy the folder, set the same environment variables,
 run `python3 unstable_alert.py`. Run it in exactly one place at a time, or both
 copies will fight over the command queue and you'll get duplicate alerts.
+(That is why the macOS launch agent is uninstalled when running on Actions.)
 
 ## Where the data comes from
 
